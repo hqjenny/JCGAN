@@ -11,27 +11,34 @@ import numpy as np
 from time import gmtime, strftime
 from glob import glob
 import os
+import matplotlib.pyplot as plt
 
 pp = pprint.PrettyPrinter()
 
 get_stddev = lambda x, k_h, k_w: 1/math.sqrt(k_w*k_h*x.get_shape()[-1])
 
-def get_image(image_path, image_size, is_crop=True, resize_w=64, is_grayscale = False):
-    #print image_path
-    image = imread(image_path, is_grayscale)
+def get_image(image_path, image_size, is_crop=True, resize_w=64, is_grayscale = False, is_norm = True):
+    print image_path
+    #image = imread(image_path, is_grayscale)
+    #image = 255 - image
     #print image.shape
-    image = transform(imread(image_path, is_grayscale), image_size, is_crop, resize_w)
+    #plt.imshow(image[...,::-1])
+    #plt.imshow(image)
+    #plt.show()
+    image = imread(image_path, is_grayscale)
+    image = transform(image, image_size, is_crop, resize_w, is_norm)
+    #scipy.misc.imshow(image)
     #print image.shape
     return image
 
 def save_images(images, size, image_path):
     return imsave(inverse_transform(images), size, image_path)
 
-def imread(path, is_grayscale = False):
+def imread(path, is_grayscale = False, type = np.float32):
     if (is_grayscale):
-        return scipy.misc.imread(path, flatten = True).astype(np.float)
+        return scipy.misc.imread(path, flatten = True).astype(type)
     else:
-        return scipy.misc.imread(path).astype(np.float)
+        return scipy.misc.imread(path).astype(type)
 
 def merge_images(images, size):
     return inverse_transform(images)
@@ -58,13 +65,17 @@ def center_crop(x, crop_h, crop_w=None, resize_w=64):
     return scipy.misc.imresize(x[j:j+crop_h, i:i+crop_w],
                                [resize_w, resize_w])
 
-def transform(image, npx=64, is_crop=True, resize_w=64):
+def transform(image, npx=64, is_crop=True, resize_w=64, is_norm = True):
     # npx : # of pixels width/height of image
     if is_crop:
         cropped_image = center_crop(image, npx, resize_w=resize_w)
     else:
         cropped_image = image
-    return np.array(cropped_image)/127.5 - 1.
+
+    if is_norm:
+        return np.array(cropped_image)/127.5 - 1.
+    else:
+        return cropped_image
 
 def inverse_transform(images):
     return (images+1.)/2.
@@ -229,3 +240,13 @@ def visualize(sess, jcgan, config, option):
             mask_batch_images = np.array(mask_batch).astype(np.float32)
             bg_batch_images = np.array(bg_batch).astype(np.float32)
     samples = sess.run(jcgan.sampler, feed_dict={jcgan.z: z_sample})
+
+def show_image(image, is_norm = True):
+    if is_norm:
+        image = (image + 1.) * 127.5
+    image = np.array(image).astype(np.uint8)
+    plt.imshow(image)
+    plt.show()
+
+
+
