@@ -6,11 +6,15 @@ import matplotlib.pyplot as plt
 
 dataset = "web_static_outdoor_street_freiberg_germany"
 
-#obj_data = glob(os.path.join("./data/images/", dataset, "*.jpg"))
+obj_data = glob(os.path.join("./data/images/", dataset, "*.jpg"))
 mask_data = glob(os.path.join("./data/masks/", dataset, "*.jpg"))
 bg_data = glob(os.path.join("./data/images/", dataset, "*.jpg"))
 
-target = open("triplet.txt", 'w')
+#target = open("triplet.txt", 'w')
+target = open("real.txt", 'w')
+[target.write("%s\n"%name) for name in obj_data]
+target.close()
+
 obj = [ x.replace("/masks/","/images/") for x in mask_data]
 target = open("obj.txt", 'w')
 [target.write("%s\n"%name) for name in obj]

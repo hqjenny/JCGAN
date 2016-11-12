@@ -18,7 +18,7 @@ pp = pprint.PrettyPrinter()
 get_stddev = lambda x, k_h, k_w: 1/math.sqrt(k_w*k_h*x.get_shape()[-1])
 
 def get_image(image_path, image_size, is_crop=True, resize_w=64, is_grayscale = False, is_norm = True):
-    print image_path
+    #print image_path
     #image = imread(image_path, is_grayscale)
     #image = 255 - image
     #print image.shape
@@ -248,5 +248,33 @@ def show_image(image, is_norm = True):
     plt.imshow(image)
     plt.show()
 
+def show_input_triplet(obj_batch_images, mask_batch_images, bg_batch_images):
+    for i in range(obj_batch_images.shape[0]):
+        plt.figure()
+        plt.subplot(221)
+        plt.imshow(obj_batch_images[i])
+        plt.subplot(222)
+        plt.imshow(mask_batch_images[i])
+        plt.subplot(223)
+        plt.imshow(bg_batch_images[i])
+        plt.show()
 
+# Use create_triplet.py to generate the input list
+def read_data_list():
+    # Load data from file
+    #real_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
+    with open("real.txt") as f:
+        real_data = f.read().splitlines()
+    #np.random.shuffle(data)
 
+    #obj_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
+    with open("obj.txt") as f:
+        obj_data = f.read().splitlines()
+    #mask_data = glob(os.path.join("./data/masks/", config.dataset, "*.jpg"))
+    with open("mask.txt") as f:
+        mask_data = f.read().splitlines()
+    #bg_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
+    with open("bg.txt") as f:
+        bg_data = f.read().splitlines()
+
+    return (real_data, obj_data, mask_data, bg_data)

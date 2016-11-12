@@ -12,7 +12,7 @@ from utils import *
 
 class JCGAN(object):
     def __init__(self, sess, image_size=108, is_crop=True,
-                 batch_size=64, sample_size=64, output_size=480,
+                 batch_size=64, output_size=480,
                  y_dim=None, gf_dim=64, df_dim=64,
                  gfc_dim=1024, dfc_dim=1024, c_dim=3, dataset_name='default',
                  checkpoint_dir=None, sample_dir=None):
@@ -35,7 +35,6 @@ class JCGAN(object):
         self.is_grayscale = (c_dim == 1)
         self.batch_size = batch_size
         self.image_size = image_size
-        self.sample_size = sample_size
         self.output_size = output_size
 
         self.gf_dim = gf_dim
@@ -62,12 +61,9 @@ class JCGAN(object):
     # Build the TF data-flow graph
     def build_model(self):
         # 1. Specify the image size
-        # TODO output size is different for different input images
+        # images is the real image fed in D
         self.images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, self.c_dim],
                                     name='real_images')
-
-        self.sample_images= tf.placeholder(tf.float32, [self.sample_size] + [self.output_size, self.output_size, self.c_dim],
-                                        name='sample_images')
 
         self.obj_images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, self.c_dim],
                                     name='obj_images')
@@ -113,19 +109,9 @@ class JCGAN(object):
 
     def train(self, config):
         """Train DCGAN"""
-        # load data from file
-        data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
-        #np.random.shuffle(data)
 
-        #obj_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
-        with open("obj.txt") as f:
-            obj_data = f.read().splitlines()
-        #mask_data = glob(os.path.join("./data/masks/", config.dataset, "*.jpg"))
-        with open("mask.txt") as f:
-            mask_data = f.read().splitlines()
-        #bg_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
-        with open("bg.txt") as f:
-            bg_data = f.read().splitlines()
+        # Read list of input images, modify read_data_list() function if input path is changed
+        real_data, obj_data, mask_data, bg_data = read_data_list()
 
         d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
                           .minimize(self.d_loss, var_list=self.d_vars)
@@ -138,17 +124,10 @@ class JCGAN(object):
         self.d_sum = tf.merge_summary([self.d_sum, self.d_loss_real_sum, self.d_loss_sum])
         self.writer = tf.train.SummaryWriter("./logs", self.sess.graph)
 
-        # Feed sample images to discriminator as real image
-
-        sample_files = data[0:min(self.sample_size, len(data))]
-        sample = [get_image(sample_file, self.image_size, is_crop=self.is_crop, resize_w=self.output_size, is_grayscale = self.is_grayscale) for sample_file in sample_files]
-
-        if (self.is_grayscale):
-            sample_images = np.array(sample).astype(np.float32)[:, :, :, None]
-        else:
-            # Set crop to True as the images are of different size
-            sample_images = np.array(sample).astype(np.float32)
-            print sample_images.shape
+        # Feed real images to discriminator
+        real_files = real_data[0:min(config.real_size, len(real_data))]
+        real_images = self.read_batch_images(real_files, True, np.float32)
+        real_idxs = len(real_files)// config.batch_size
 
         counter = 1
         start_time = time.time()
@@ -160,38 +139,27 @@ class JCGAN(object):
 
         # Train the whole dataset for config.epoch times
         for epoch in xrange(config.epoch):
-
-
             batch_idxs = min(len(obj_data), config.train_size) // config.batch_size
-            print(batch_idxs)
 
-            # iterate through different obj and bg pairs
+            # Iterate through different obj and bg pairs
             for idx in xrange(0, batch_idxs):
-                # get the images files for the obj and background
+
+                # Get the images files for the obj and background, cropped and normalized
                 obj_batch_images, mask_batch_images, bg_batch_images = self.read_triplet(obj_data, mask_data, bg_data, idx, config.batch_size)
 
-                print obj_batch_images.shape
-                plt.figure()
-                plt.subplot(221)
-                plt.imshow(obj_batch_images[0])
-                plt.subplot(222)
-                plt.imshow(mask_batch_images[0])
-                plt.subplot(223)
-                plt.imshow(bg_batch_images[0])
-                plt.show()
+                # For debugging - show the images
+                show_input_triplet(obj_batch_images, mask_batch_images, bg_batch_images)
 
                 # Train the same object and bg for the generator; while input different real objects for the discriminator
-                sample_idx = min(len(sample), config.sample_size) // config.batch_size
-                print "sample idx"
-                print(sample_idx)
+                # Iterate through the real sample images for the discriminator
+                for real_idx in range(real_idxs):
 
-                for i in range(sample_idx):
-                    #inner loop
-                    sample_batch_images = sample_images[i * config.batch_size:(i+1)* config.batch_size]
+                    real_batch_images = real_images[real_idx * config.batch_size:(real_idx+1)* config.batch_size]
+
                     # Update D network
                     # TODO use the object image as the real images
                     _, summary_str = self.sess.run([d_optim, self.d_sum],
-                        feed_dict={ self.images: sample_batch_images, self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                        feed_dict={ self.images: real_batch_images, self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
                     self.writer.add_summary(summary_str, counter)
 
                     # Update G network
@@ -204,14 +172,13 @@ class JCGAN(object):
                         feed_dict={ self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
                     self.writer.add_summary(summary_str, counter)
 
-                    # Feed in data that make evalutation of d_loss_fake possible,
-                    # used to input z a vector of noise, now is three input images
                     synth_image = self.obj_color.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
-                    print(np.array(synth_image).shape)
                     show_image(synth_image[0])
 
+                    # Feed in data that make evalutation of d_loss_fake possible,
+                    # Used to input z a vector of noise, now is three input images
                     errD_fake = self.d_loss_fake.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
-                    errD_real = self.d_loss_real.eval({self.images: obj_batch_images})
+                    errD_real = self.d_loss_real.eval({self.images: real_batch_images})
                     errG = self.g_loss.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
 
                     counter += 1
@@ -219,13 +186,14 @@ class JCGAN(object):
                         % (epoch, idx, batch_idxs,
                             time.time() - start_time, errD_fake+errD_real, errG))
 
-                    if np.mod(counter, 2) == 1:
+                    if np.mod(counter, 2) == 3:
                         samples, d_loss, g_loss = self.sess.run(
                             [self.sampler, self.d_loss, self.g_loss],
-                            #TODO changed the sampler function
-                            feed_dict={self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images, self.images: sample_batch_images}
+                            feed_dict={self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images, self.images: real_batch_images}
                         )
-                        save_images(samples, [8, 8],
+
+                        #TODO 64 is the output size can update to larger number
+                        save_images(samples, [16, 16],
                                     './{}/train_{:02d}_{:04d}.png'.format(config.sample_dir, epoch, idx))
                         print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss))
 
@@ -280,8 +248,9 @@ class JCGAN(object):
         # change mask dimension from N x H x W x 1 to N x H x W x 3
         mask_image_pack = tf.concat(3, [tf.expand_dims(mask_image, 3) for i in range(3)])
         #print mask_image_pack.get_shape()
-        self.obj_color = obj_color
         syn_image = tf.select(mask_image_pack, obj_color, bg_image)
+        self.obj_color = syn_image
+
         return syn_image
 
     def sampler(self, obj_image, bg_image, mask_image):
@@ -302,8 +271,8 @@ class JCGAN(object):
         # Affine Layer
         # Reshape output to Batch x C x C
         color_filter = tf.reshape(filter, [-1, shape[3], shape[3]])
-        print color_filter.get_shape()
-        print obj_image.get_shape()
+        #print color_filter.get_shape()
+        #print obj_image.get_shape()
 
         # Reshape input image to N x (H x W) x C 3-D
         obj_image_rs = tf.reshape(obj_image, [shape[0], shape[1] * shape[2], shape[3]])
@@ -344,7 +313,6 @@ class JCGAN(object):
         else:
             return False
 
-
     def siamese(self, image, num_class, train=False):
         #filter_dim = 6 in siamese net
 
@@ -364,25 +332,27 @@ class JCGAN(object):
 
         return fc6
 
-
+    # Read batch of obj, mask and bg images
     def read_triplet(self, obj_data, mask_data, bg_data, idx, batch_size):
-        print "obj"
+        #print "obj"
         obj_batch_files = obj_data[idx*batch_size:(idx+1)* batch_size]
-        obj_batch = [get_image(batch_file, self.image_size, is_crop=self.is_crop, resize_w=self.output_size, is_grayscale = self.is_grayscale) for batch_file in obj_batch_files]
-        print "mask"
-        mask_batch_files = mask_data[idx*batch_size:(idx+1)*batch_size]
-        mask_batch = [get_image(batch_file, self.image_size, is_crop=self.is_crop, resize_w=self.output_size, is_grayscale = self.is_grayscale, is_norm = False) for batch_file in mask_batch_files]
-        print "bg"
-        bg_batch_files = bg_data[idx*batch_size:(idx+1)*batch_size]
-        bg_batch = [get_image(batch_file, self.image_size, is_crop=self.is_crop, resize_w=self.output_size, is_grayscale = self.is_grayscale) for batch_file in bg_batch_files]
+        obj_batch_images = self.read_batch_images(obj_batch_files, True, np.float32)
 
-        if (self.is_grayscale):
-            obj_batch_images = np.array(obj_batch).astype(np.float32)[:, :, :, None]
-            mask_batch_images = np.array(mask_batch).astype(np.bool)[:, :, :, None]
-            bg_batch_images = np.array(bg_batch).astype(np.float32)[:, :, :, None]
-        else:
-            obj_batch_images = np.array(obj_batch).astype(np.float32)
-            mask_batch_images = np.array(mask_batch).astype(np.bool)
-            bg_batch_images = np.array(bg_batch).astype(np.float32)
+        #print "mask"
+        mask_batch_files = mask_data[idx*batch_size:(idx+1)*batch_size]
+        mask_batch_images = self.read_batch_images(mask_batch_files, False, np.bool)
+        #print "bg"
+        bg_batch_files = bg_data[idx*batch_size:(idx+1)*batch_size]
+        bg_batch_images = self.read_batch_images(bg_batch_files, True, np.float32)
 
         return (obj_batch_images, mask_batch_images, bg_batch_images)
+
+    # Read batch of data
+    def read_batch_images(self, batch_data, is_norm=True, data_type=np.float32):
+        obj_batch = [get_image(batch_file, self.image_size, is_crop=self.is_crop, resize_w=self.output_size, is_grayscale = self.is_grayscale, is_norm = is_norm) for batch_file in batch_data]
+
+        if (self.is_grayscale):
+            batch_images = np.array(obj_batch).astype(data_type)[:, :, :, None]
+        else:
+            batch_images = np.array(obj_batch).astype(data_type)
+        return batch_images
