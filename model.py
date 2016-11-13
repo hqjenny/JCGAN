@@ -256,7 +256,9 @@ class JCGAN(object):
 
         # Affine Layer
         # Reshape output to Batch x C x C
-        color_filter = tf.reshape(filter, [-1, shape[3], shape[3]])
+        color_filter_offset = tf.reshape(filter, [-1, shape[3], shape[3]])
+        identity_matrix = tf.constant(np.identity(shape[3]), dtype=np.float32, shape = [shape[3],shape[3]])
+        color_filter = identity_matrix + color_filter_offset
         #print color_filter.get_shape()
         #print obj_image.get_shape()
 
@@ -292,8 +294,9 @@ class JCGAN(object):
 
         # Affine Layer
         # Reshape output to Batch x C x C
-        color_filter = tf.reshape(filter, [-1, shape[3], shape[3]])
-        #print color_filter.get_shape()
+        color_filter_offset = tf.reshape(filter, [-1, shape[3], shape[3]])
+        identity_matrix = tf.constant(np.identity(shape[3]), dtype=np.float32, shape = [shape[3],shape[3]])
+        color_filter = identity_matrix + color_filter_offset        #print color_filter.get_shape()
         #print obj_image.get_shape()
 
         # Reshape input image to N x (H x W) x C 3-D
