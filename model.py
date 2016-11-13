@@ -15,7 +15,7 @@ class JCGAN(object):
                  batch_size=64, output_size=480,
                  y_dim=None, gf_dim=64, df_dim=64,
                  gfc_dim=1024, dfc_dim=1024, c_dim=3, dataset_name='default',
-                 checkpoint_dir=None, sample_dir=None):
+                 checkpoint_dir=None, sample_dir=None, device="/cpu:0"):
         """
 
         Args:
@@ -30,6 +30,7 @@ class JCGAN(object):
             dfc_dim: (optional) Dimension of discrim units for fully connected layer. [1024]
             c_dim: (optional) Dimension of image color. For grayscale input, set to 1. [3]
         """
+        self.device = device
         self.sess = sess
         self.is_crop = is_crop
         self.is_grayscale = (c_dim == 1)
@@ -60,52 +61,54 @@ class JCGAN(object):
 
     # Build the TF data-flow graph
     def build_model(self):
-        # 1. Specify the image size
-        # images is the real image fed in D
-        self.images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, self.c_dim],
-                                    name='real_images')
 
-        self.obj_images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, self.c_dim],
-                                    name='obj_images')
+        with tf.device(self.device):
+            # 1. Specify the image size
+            # images is the real image fed in D
+            self.images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, self.c_dim],
+                                        name='real_images')
 
-        self.bg_images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, self.c_dim],
-                                    name='bg_images')
+            self.obj_images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, self.c_dim],
+                                        name='obj_images')
 
-        self.mask_images = tf.placeholder(tf.bool , [self.batch_size] + [self.output_size, self.output_size],
-                                    name='mask_images')
+            self.bg_images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, self.c_dim],
+                                        name='bg_images')
 
-        # 2. Build generator and discriminator
-        # G: generated images
-        # D: sigmoid of D_logits from real images
-        # D_: sigmoid of D_logits_ from generated images
-        self.G = self.generator(self.obj_images, self.bg_images, self.mask_images)
-        self.D, self.D_logits = self.discriminator(self.images)
+            self.mask_images = tf.placeholder(tf.bool, [self.batch_size] + [self.output_size, self.output_size],
+                                        name='mask_images')
 
-        self.sampler = self.sampler(self.obj_images, self.bg_images, self.mask_images)
-        self.D_, self.D_logits_ = self.discriminator(self.G, reuse=True)
+            # 2. Build generator and discriminator
+            # G: generated images
+            # D: sigmoid of D_logits from real images
+            # D_: sigmoid of D_logits_ from generated images
+            self.G = self.generator(self.obj_images, self.bg_images, self.mask_images)
+            self.D, self.D_logits = self.discriminator(self.images)
 
-        self.d_sum = tf.histogram_summary("d", self.D)
-        self.d__sum = tf.histogram_summary("d_", self.D_)
-        self.G_sum = tf.image_summary("G", self.G)
+            self.sampler = self.sampler(self.obj_images, self.bg_images, self.mask_images)
+            self.D_, self.D_logits_ = self.discriminator(self.G, reuse=True)
 
-        self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
-        self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
-        self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
+            self.d_sum = tf.histogram_summary("d", self.D)
+            self.d__sum = tf.histogram_summary("d_", self.D_)
+            self.G_sum = tf.image_summary("G", self.G)
 
-        self.d_loss_real_sum = tf.scalar_summary("d_loss_real", self.d_loss_real)
-        self.d_loss_fake_sum = tf.scalar_summary("d_loss_fake", self.d_loss_fake)
+            self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
+            self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
+            self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
-        self.d_loss = self.d_loss_real + self.d_loss_fake
+            self.d_loss_real_sum = tf.scalar_summary("d_loss_real", self.d_loss_real)
+            self.d_loss_fake_sum = tf.scalar_summary("d_loss_fake", self.d_loss_fake)
 
-        self.g_loss_sum = tf.scalar_summary("g_loss", self.g_loss)
-        self.d_loss_sum = tf.scalar_summary("d_loss", self.d_loss)
+            self.d_loss = self.d_loss_real + self.d_loss_fake
 
-        t_vars = tf.trainable_variables()
+            self.g_loss_sum = tf.scalar_summary("g_loss", self.g_loss)
+            self.d_loss_sum = tf.scalar_summary("d_loss", self.d_loss)
 
-        self.d_vars = [var for var in t_vars if 'd_' in var.name]
-        self.g_vars = [var for var in t_vars if 'g_' in var.name]
+            t_vars = tf.trainable_variables()
 
-        self.saver = tf.train.Saver()
+            self.d_vars = [var for var in t_vars if 'd_' in var.name]
+            self.g_vars = [var for var in t_vars if 'g_' in var.name]
+
+            self.saver = tf.train.Saver()
 
     def train(self, config):
         """Train DCGAN"""
@@ -162,10 +165,26 @@ class JCGAN(object):
                         feed_dict={ self.images: real_batch_images, self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
                     self.writer.add_summary(summary_str, counter)
 
+                    errD_fake = self.d_loss_fake.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    errD_real = self.d_loss_real.eval({self.images: real_batch_images})
+                    errG = self.g_loss.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+
+                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_fake_loss: %.8f, d_real_loss: %.8f, g_loss: %.8f" \
+                        % (epoch, idx, batch_idxs,
+                            time.time() - start_time, errD_fake, errD_real, errG))
+
                     # Update G network
                     _, summary_str = self.sess.run([g_optim, self.g_sum],
                         feed_dict={ self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
                     self.writer.add_summary(summary_str, counter)
+
+                    errD_fake = self.d_loss_fake.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    errD_real = self.d_loss_real.eval({self.images: real_batch_images})
+                    errG = self.g_loss.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+
+                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_fake_loss: %.8f, d_real_loss: %.8f, g_loss: %.8f" \
+                        % (epoch, idx, batch_idxs,
+                            time.time() - start_time, errD_fake, errD_real, errG))
 
                     # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
                     _, summary_str = self.sess.run([g_optim, self.g_sum],
@@ -182,23 +201,26 @@ class JCGAN(object):
                     errG = self.g_loss.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
 
                     counter += 1
+                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_fake_loss: %.8f, d_real_loss: %.8f, g_loss: %.8f" \
+                        % (epoch, idx, batch_idxs,
+                            time.time() - start_time, errD_fake, errD_real, errG))
                     print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
                         % (epoch, idx, batch_idxs,
                             time.time() - start_time, errD_fake+errD_real, errG))
 
-                    if np.mod(counter, 2) == 3:
+                    if np.mod(counter, 2) == 1:
                         samples, d_loss, g_loss = self.sess.run(
                             [self.sampler, self.d_loss, self.g_loss],
                             feed_dict={self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images, self.images: real_batch_images}
                         )
 
                         #TODO 64 is the output size can update to larger number
-                        save_images(samples, [16, 16],
-                                    './{}/train_{:02d}_{:04d}.png'.format(config.sample_dir, epoch, idx))
+                        save_images(samples, [8, 8],
+                                    './{}/train_{:02d}_{:04d}_{:04d}.png'.format(config.sample_dir, epoch, idx, real_idx))
                         print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss))
 
-                #if np.mod(counter, 500) == 2:
-                #    self.save(config.checkpoint_dir, counter)
+                    # if np.mod(counter, 500) == 2:
+                    #    self.save(config.checkpoint_dir, counter)
 
     def discriminator(self, image, reuse=False):
         with tf.variable_scope("d_iscriminator") as scope:
