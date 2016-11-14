@@ -4,7 +4,6 @@ import time
 from glob import glob
 import tensorflow as tf
 import numpy as np
-#from six.moves import xrange
 import matplotlib.pyplot as plt
 
 from ops import *
@@ -120,6 +119,7 @@ class JCGAN(object):
                           .minimize(self.d_loss, var_list=self.d_vars)
         g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
                           .minimize(self.g_loss, var_list=self.g_vars)
+        #tf.initialize_all_variables().run()
         tf.initialize_all_variables().run()
 
         self.g_sum = tf.merge_summary([self.d__sum,
@@ -141,11 +141,11 @@ class JCGAN(object):
         #     print(" [!] Load failed...")
 
         # Train the whole dataset for config.epoch times
-        for epoch in xrange(config.epoch):
+        for epoch in range(config.epoch):
             batch_idxs = min(len(obj_data), config.train_size) // config.batch_size
 
             # Iterate through different obj and bg pairs
-            for idx in xrange(0, batch_idxs):
+            for idx in range(0, batch_idxs):
 
                 # Get the images files for the obj and background, cropped and normalized
                 obj_batch_images, mask_batch_images, bg_batch_images = self.read_triplet(obj_data, mask_data, bg_data, idx, config.batch_size)
@@ -265,7 +265,7 @@ class JCGAN(object):
         # Reshape input image to N x (H x W) x C 3-D
         obj_image_rs = tf.reshape(obj_image, [shape[0], shape[1] * shape[2], shape[3]])
         obj_color = tf.reshape(tf.batch_matmul(obj_image_rs, color_filter), shape)
-        print obj_color.get_shape()
+        print (obj_color.get_shape())
         # Generate N images? N x H x W x C
         # Use select to combine obj and bg
 
@@ -302,7 +302,7 @@ class JCGAN(object):
         # Reshape input image to N x (H x W) x C 3-D
         obj_image_rs = tf.reshape(obj_image, [shape[0], shape[1] * shape[2], shape[3]])
         obj_color = tf.reshape(tf.batch_matmul(obj_image_rs, color_filter), shape)
-        print obj_color.get_shape()
+        print(obj_color.get_shape())
 
         # change mask dimension from N x H x W x 1 to N x H x W x 3
         mask_image_pack = tf.concat(3, [tf.expand_dims(mask_image, 3) for i in range(3)])

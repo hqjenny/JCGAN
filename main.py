@@ -35,7 +35,9 @@ def main(_):
     if not os.path.exists(FLAGS.sample_dir):
         os.makedirs(FLAGS.sample_dir)
 
-    with tf.Session() as sess:
+    config = tf.ConfigProto(allow_soft_placement = True)
+
+    with tf.Session(config = config) as sess:
         jcgan = JCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, output_size=FLAGS.output_size, c_dim=FLAGS.c_dim,
                dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir, sample_dir=FLAGS.sample_dir, device=FLAGS.device)
 
