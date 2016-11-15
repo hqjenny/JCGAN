@@ -115,9 +115,9 @@ class JCGAN(object):
         # Read list of input images, modify read_data_list() function if input path is changed
         real_data, obj_data, mask_data, bg_data = read_data_list()
 
-        d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
+        d_optim = tf.train.AdamOptimizer(config.learning_rate_d, beta1=config.beta1) \
                           .minimize(self.d_loss, var_list=self.d_vars)
-        g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
+        g_optim = tf.train.AdamOptimizer(config.learning_rate_g, beta1=config.beta1) \
                           .minimize(self.g_loss, var_list=self.g_vars)
         #tf.initialize_all_variables().run()
         tf.initialize_all_variables().run()
@@ -151,13 +151,15 @@ class JCGAN(object):
                 obj_batch_images, mask_batch_images, bg_batch_images = self.read_triplet(obj_data, mask_data, bg_data, idx, config.batch_size)
 
                 # For debugging - show the images
-                show_input_triplet(obj_batch_images, mask_batch_images, bg_batch_images)
+                #show_input_triplet(obj_batch_images, mask_batch_images, bg_batch_images)
 
                 # Train the same object and bg for the generator; while input different real objects for the discriminator
                 # Iterate through the real sample images for the discriminator
                 for real_idx in range(real_idxs):
 
                     real_batch_images = real_images[real_idx * config.batch_size:(real_idx+1)* config.batch_size]
+                    #test_image = real_batch_images[0].dot(np.array([[ 1.00441265, -0.00219392, -0.00315708],[ 0.01812466,  0.99680835,  0.00701926], [ 0.00638699, -0.00649006,  1.03297222]]))
+                    #show_image(test_image)
 
                     # Update D network
                     # TODO use the object image as the real images
@@ -191,8 +193,13 @@ class JCGAN(object):
                         feed_dict={ self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
                     self.writer.add_summary(summary_str, counter)
 
-                    synth_image = self.obj_color.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
-                    show_image(synth_image[0])
+                    #synth_image = self.obj_color.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    color_filter_offset = self.color_filter_offset.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    color_filter = self.color_filter.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    print(color_filter_offset)
+                    print(color_filter)
+                  
+                    #show_image(synth_image[0])
 
                     # Feed in data that make evalutation of d_loss_fake possible,
                     # Used to input z a vector of noise, now is three input images
@@ -208,14 +215,16 @@ class JCGAN(object):
                         % (epoch, idx, batch_idxs,
                             time.time() - start_time, errD_fake+errD_real, errG))
 
-                    if np.mod(counter, 2) == 1:
+                    #Only save the images to the sample folder when it is looping through half way of real images or the end.   
+                    #if np.mod(counter, 4) == 1:
+                    if real_idx == real_idxs/2 or real_idx == real_idxs-1:
                         samples, d_loss, g_loss = self.sess.run(
                             [self.sampler, self.d_loss, self.g_loss],
                             feed_dict={self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images, self.images: real_batch_images}
                         )
 
                         #TODO 64 is the output size can update to larger number
-                        save_images(samples, [8, 8],
+                        save_images(samples, [2, 2],
                                     './{}/train_{:02d}_{:04d}_{:04d}.png'.format(config.sample_dir, epoch, idx, real_idx))
                         print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss))
 
@@ -257,8 +266,13 @@ class JCGAN(object):
         # Affine Layer
         # Reshape output to Batch x C x C
         color_filter_offset = tf.reshape(filter, [-1, shape[3], shape[3]])
+        self.color_filter_offset = color_filter_offset
+        #identity = np.identity(shape[3])
+        #identity_matrix = tf.constant( np.tile(identity, (shape[0], 1)) , dtype=np.float32, shape = [shape[0],shape[3],shape[3]])
         identity_matrix = tf.constant(np.identity(shape[3]), dtype=np.float32, shape = [shape[3],shape[3]])
-        color_filter = identity_matrix + color_filter_offset
+        color_filter = identity_matrix + color_filter_offset * 1e-1
+        #color_filter = identity_matrix
+        self.color_filter = color_filter
         #print color_filter.get_shape()
         #print obj_image.get_shape()
 

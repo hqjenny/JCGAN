@@ -88,3 +88,8 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+#Ignore txt  
+*.txt
+logs/
+run.sh
