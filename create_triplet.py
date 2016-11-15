@@ -4,11 +4,13 @@ import random
 import scipy.misc
 import matplotlib.pyplot as plt
 
+#parent_folder="./data/images/"
+parent_folder="/media/cecilia/DATA/cecilia/labelme/"
 dataset = "web_static_outdoor_street_freiberg_germany"
 
-obj_data = glob(os.path.join("./data/images/", dataset, "*.jpg"))
-mask_data = glob(os.path.join("./data/masks/", dataset, "*.jpg"))
-bg_data = glob(os.path.join("./data/images/", dataset, "*.jpg"))
+obj_data = glob(os.path.join(parent_folder + "images", dataset, "*.jpg"))
+mask_data = glob(os.path.join(parent_folder + "masks", dataset, "*.jpg"))
+bg_data = glob(os.path.join(parent_folder + "images", dataset, "*.jpg"))
 
 #target = open("triplet.txt", 'w')
 target = open("real.txt", 'w')
