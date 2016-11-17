@@ -83,7 +83,7 @@ class JCGAN(object):
             self.G = self.generator(self.obj_images, self.bg_images, self.mask_images)
             self.D, self.D_logits = self.discriminator(self.images)
 
-            self.sampler = self.sampler(self.obj_images, self.bg_images, self.mask_images)
+            self.synthesize = self.synthesize(self.obj_images, self.bg_images, self.mask_images)
             self.D_, self.D_logits_ = self.discriminator(self.G, reuse=True)
 
             self.d_sum = tf.histogram_summary("d", self.D)
@@ -129,7 +129,6 @@ class JCGAN(object):
 
         # Feed real images to discriminator
         real_files = real_data[0:min(config.real_size, len(real_data))]
-        real_images = self.read_batch_images(real_files, True, np.float32)
         real_idxs = len(real_files)// config.batch_size
 
         counter = 1
@@ -157,7 +156,7 @@ class JCGAN(object):
                 # Iterate through the real sample images for the discriminator
                 for real_idx in range(real_idxs):
 
-                    real_batch_images = real_images[real_idx * config.batch_size:(real_idx+1)* config.batch_size]
+                    real_batch_images = self.read_batch_images(real_files[real_idx * config.batch_size:(real_idx+1)* config.batch_size], True, np.float32)
                     #test_image = real_batch_images[0].dot(np.array([[ 1.00441265, -0.00219392, -0.00315708],[ 0.01812466,  0.99680835,  0.00701926], [ 0.00638699, -0.00649006,  1.03297222]]))
                     #show_image(test_image)
 
@@ -219,7 +218,7 @@ class JCGAN(object):
                     #if np.mod(counter, 4) == 1:
                     if real_idx == real_idxs/2 or real_idx == real_idxs-1:
                         samples, d_loss, g_loss = self.sess.run(
-                            [self.sampler, self.d_loss, self.g_loss],
+                            [self.synthesize, self.d_loss, self.g_loss],
                             feed_dict={self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images, self.images: real_batch_images}
                         )
 
@@ -270,7 +269,7 @@ class JCGAN(object):
         #identity = np.identity(shape[3])
         #identity_matrix = tf.constant( np.tile(identity, (shape[0], 1)) , dtype=np.float32, shape = [shape[0],shape[3],shape[3]])
         identity_matrix = tf.constant(np.identity(shape[3]), dtype=np.float32, shape = [shape[3],shape[3]])
-        color_filter = identity_matrix + color_filter_offset * 1e-1
+        color_filter = identity_matrix + color_filter_offset 
         #color_filter = identity_matrix
         self.color_filter = color_filter
         #print color_filter.get_shape()
@@ -291,7 +290,26 @@ class JCGAN(object):
 
         return syn_image
 
-    def sampler(self, obj_image, bg_image, mask_image):
+    def siamese(self, image, num_class, train=False):
+        #filter_dim = 6 in siamese net
+
+        # if shared weights
+        #print image.get_shape()
+        conv1 = maxpool2d(lrelu(self.g_bn0(conv2d(image, 16, d_h = 1, d_w = 1, name='g_conv0'), train=train)))
+        #print conv1.get_shape()
+        conv2 = maxpool2d(lrelu(self.g_bn1(conv2d(conv1, 32, d_h = 1, d_w = 1, name='g_conv1'), train=train)))
+        #print conv2.get_shape()
+        conv3 = maxpool2d(lrelu(self.g_bn2(conv2d(conv2, 64, d_h = 1, d_w = 1, name='g_conv2'), train=train)))
+
+        # Using leaky relu
+        fc4 = lrelu(fc(conv3, 64, "g_fc3"))
+        fc5 = lrelu(fc(fc4, 32, "g_fc4"))
+        # no ReLu
+        fc6 = fc(fc5, num_class, "g_fc5")
+
+        return fc6
+
+    def synthesize(self, obj_image, bg_image, mask_image):
 
         with tf.variable_scope("g_enerator") as scope:
             # Get the obj_image shape Batch x H x W x C
@@ -301,6 +319,7 @@ class JCGAN(object):
             obj = self.siamese(obj_image, shape[3] * shape[3], train=False)
             bg = self.siamese(bg_image, shape[3] * shape[3], train=False)
         tf.get_variable_scope().reuse_variables()
+        
         # Generates batch_size x (C x C) 2-D filter? so using add instead of concat?
         #concat_filter = tf.add(obj, bg)
         concat_filter = tf.concat(1, [obj, bg])
@@ -351,25 +370,6 @@ class JCGAN(object):
             return True
         else:
             return False
-
-    def siamese(self, image, num_class, train=False):
-        #filter_dim = 6 in siamese net
-
-        # if shared weights
-        #print image.get_shape()
-        conv1 = maxpool2d(lrelu(self.g_bn0(conv2d(image, 16, d_h = 1, d_w = 1, name='g_conv0'), train=train)))
-        #print conv1.get_shape()
-        conv2 = maxpool2d(lrelu(self.g_bn1(conv2d(conv1, 32, d_h = 1, d_w = 1, name='g_conv1'), train=train)))
-        #print conv2.get_shape()
-        conv3 = maxpool2d(lrelu(self.g_bn2(conv2d(conv2, 64, d_h = 1, d_w = 1, name='g_conv2'), train=train)))
-
-        # Using lrelu might need actual ReLu ??
-        fc4 = lrelu(fc(conv3, 64, "g_fc3"))
-        fc5 = lrelu(fc(fc4, 32, "g_fc4"))
-        # no ReLu
-        fc6 = fc(fc5, num_class, "g_fc5")
-
-        return fc6
 
     # Read batch of obj, mask and bg images
     def read_triplet(self, obj_data, mask_data, bg_data, idx, batch_size):

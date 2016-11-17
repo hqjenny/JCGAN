@@ -5,12 +5,20 @@ import scipy.misc
 import matplotlib.pyplot as plt
 
 #parent_folder="./data/images/"
-parent_folder="/media/cecilia/DATA/cecilia/labelme/"
-dataset = "web_static_outdoor_street_freiberg_germany"
+#dataset = "web_static_outdoor_street_freiberg_germany"
 
-obj_data = glob(os.path.join(parent_folder + "images", dataset, "*.jpg"))
-mask_data = glob(os.path.join(parent_folder + "masks", dataset, "*.jpg"))
-bg_data = glob(os.path.join(parent_folder + "images", dataset, "*.jpg"))
+# Specify the valid dataset in the path 
+parent_folder="/media/cecilia/DATA/cecilia/labelme/"
+with open("bg_valid.txt") as f:
+    datasets = f.read().splitlines()
+obj_data = []
+mask_data = []
+bg_data = []
+
+for dataset in datasets:
+    obj_data.extend(glob(os.path.join(parent_folder + "images", dataset, "*.jpg")))
+    mask_data.extend(glob(os.path.join(parent_folder + "masks", dataset, "*.jpg")))
+    bg_data.extend(glob(os.path.join(parent_folder + "images", dataset, "*.jpg")))
 
 #target = open("triplet.txt", 'w')
 target = open("real.txt", 'w')
