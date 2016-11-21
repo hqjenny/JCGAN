@@ -18,7 +18,7 @@ pp = pprint.PrettyPrinter()
 get_stddev = lambda x, k_h, k_w: 1/math.sqrt(k_w*k_h*x.get_shape()[-1])
 
 def get_image(image_path, image_size, is_crop=True, resize_w=64, is_grayscale = False, is_norm = True):
-    print (image_path)
+    #print (image_path)
     #image = imread(image_path, is_grayscale)
     #image = 255 - image
     #print image.shape
@@ -78,7 +78,9 @@ def transform(image, npx=64, is_crop=True, resize_w=64, is_norm = True):
         return cropped_image
 
 def inverse_transform(images):
-    return (images+1.)/2.
+    
+    #return (images+1.)/2.
+    return ((images+1.) * 127.5).astype(np.uint8)
 
 
 def to_json(output_path, *layers):
