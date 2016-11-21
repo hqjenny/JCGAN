@@ -255,9 +255,9 @@ def show_input_triplet(obj_batch_images, mask_batch_images, bg_batch_images):
         plt.subplot(221)
         show_image(obj_batch_images[i],is_show=False)
         plt.subplot(222)
-        show_image(obj_batch_images[i],is_show=False)
+        show_image(mask_batch_images[i],is_show=False)
         plt.subplot(223)
-        show_image(obj_batch_images[i],is_show=False)
+        show_image(bg_batch_images[i],is_show=False)
         plt.show()
 
 # Use create_triplet.py to generate the input list
