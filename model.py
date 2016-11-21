@@ -9,6 +9,10 @@ import matplotlib.pyplot as plt
 from ops import *
 from utils import *
 
+identity_matrix = np.identity(3)
+# apply a random filter that perturbs the color of object images
+constant_filter = identity_matrix + np.random.uniform(0, 1, identity_matrix.shape)*0.5
+
 class JCGAN(object):
     def __init__(self, sess, image_size=108, is_crop=True,
                  batch_size=64, output_size=480,
@@ -149,8 +153,12 @@ class JCGAN(object):
                 # Get the images files for the obj and background, cropped and normalized
                 obj_batch_images, mask_batch_images, bg_batch_images = self.read_triplet(obj_data, mask_data, bg_data, idx, config.batch_size)
 
+                # apply a random filter
+                shape = obj_batch_images.shape
+                obj_batch_images_rs = np.reshape(obj_batch_images, [shape[0], shape[1] * shape[2], shape[3]])
+                obj_batch_images = np.reshape(np.dot(obj_batch_images_rs, constant_filter), shape)
                 # For debugging - show the images
-                #show_input_triplet(obj_batch_images, mask_batch_images, bg_batch_images)
+                show_input_triplet(obj_batch_images, mask_batch_images, bg_batch_images)
 
                 # Train the same object and bg for the generator; while input different real objects for the discriminator
                 # Iterate through the real sample images for the discriminator

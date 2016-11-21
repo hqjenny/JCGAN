@@ -241,22 +241,23 @@ def visualize(sess, jcgan, config, option):
             bg_batch_images = np.array(bg_batch).astype(np.float32)
     samples = sess.run(jcgan.sampler, feed_dict={jcgan.z: z_sample})
 
-def show_image(image, is_norm = True):
+def show_image(image, is_norm = True, is_show=True):
     if is_norm:
         image = (image + 1.) * 127.5
     image = np.array(image).astype(np.uint8)
     plt.imshow(image)
-    plt.show()
+    if is_show:
+        plt.show()
 
 def show_input_triplet(obj_batch_images, mask_batch_images, bg_batch_images):
     for i in range(obj_batch_images.shape[0]):
-        plt.figure()
+        #plt.figure()
         plt.subplot(221)
-        plt.imshow(obj_batch_images[i])
+        show_image(obj_batch_images[i],is_show=False)
         plt.subplot(222)
-        plt.imshow(mask_batch_images[i])
+        show_image(obj_batch_images[i],is_show=False)
         plt.subplot(223)
-        plt.imshow(bg_batch_images[i])
+        show_image(obj_batch_images[i],is_show=False)
         plt.show()
 
 # Use create_triplet.py to generate the input list
