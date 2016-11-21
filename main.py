@@ -8,15 +8,15 @@ from utils import pp, visualize, to_json
 import tensorflow as tf
 
 flags = tf.app.flags
-flags.DEFINE_integer("epoch", 5, "Epoch to train [25]")
+flags.DEFINE_integer("epoch", 1, "Epoch to train [25]")
 # Use different learning rate of discriminator and generator 
 flags.DEFINE_float("learning_rate_d", 0.000002, "Learning rate of for adam [0.0002]")
 flags.DEFINE_float("learning_rate_g", 0.000002, "Learning rate of for adam [0.0002]")
 flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
-flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
-flags.DEFINE_integer("real_size", np.inf, "The size of real sample images [np.inf]")
+flags.DEFINE_integer("train_size", 32, "The size of train images [np.inf]")
+flags.DEFINE_integer("real_size", 16, "The size of real sample images [np.inf]")
 #flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
-flags.DEFINE_integer("batch_size", 4, "The size of batch images [64]")
+flags.DEFINE_integer("batch_size", 16, "The size of batch images [64]")
 flags.DEFINE_integer("image_size", 480, "The size of image to use (will be center cropped) [108]")
 flags.DEFINE_integer("output_size", 480, "The size of the output images to produce [64]")
 flags.DEFINE_integer("c_dim", 3, "Dimension of image color. [3]")

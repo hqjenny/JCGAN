@@ -223,7 +223,7 @@ class JCGAN(object):
                         )
 
                         #TODO 64 is the output size can update to larger number
-                        save_images(samples, [2, 2],
+                        save_images(samples, [4, 4],
                                     './{}/train_{:02d}_{:04d}_{:04d}.png'.format(config.sample_dir, epoch, idx, real_idx))
                         print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss))
 
