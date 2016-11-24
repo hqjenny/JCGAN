@@ -5,6 +5,8 @@ import numpy as np
 from model import JCGAN
 from utils import pp, visualize, to_json
 
+import sys
+sys.stdout.flush()
 import tensorflow as tf
 
 flags = tf.app.flags
