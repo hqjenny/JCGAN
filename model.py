@@ -169,7 +169,7 @@ class JCGAN(object):
                 # Iterate through the real sample images for the discriminator
                 #TODO TMP CHANGE
                 # for real_idx in range(real_idxs):
-                for real_idx in range(1):
+                for real_idx in range(config.fake_real_ratio):
 
                     #real_batch_images = self.read_batch_images(real_files[idx * config.batch_size:(idx+1)* config.batch_size], True, np.float32)
                     real_batch_images = self.read_batch_images([real_files[i] for i in real_files_rand.tolist()], True, np.float32)
@@ -410,7 +410,7 @@ class JCGAN(object):
 
     # Read batch of data
     def read_batch_images(self, batch_data, is_norm=True, data_type=np.float32):
-        print (batch_data)
+        #print (batch_data)
         obj_batch = [get_image(batch_file, self.image_size, is_crop=self.is_crop, resize_w=self.output_size, is_grayscale = self.is_grayscale, is_norm = is_norm) for batch_file in batch_data]
 
         if (self.is_grayscale):
