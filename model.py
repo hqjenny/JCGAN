@@ -17,7 +17,7 @@ class JCGAN(object):
     def __init__(self, sess, image_size=108, is_crop=True,
                  batch_size=64, output_size=480,
                  y_dim=None, gf_dim=64, df_dim=64,
-                 gfc_dim=1024, dfc_dim=1024, c_dim=3, dataset_name='default',
+                 gfc_dim=1024, dfc_dim=1024, c_dim=3, reg=0.01, dataset_name='default',
                  checkpoint_dir=None, sample_dir=None, device="/cpu:0"):
         """
 
@@ -49,6 +49,7 @@ class JCGAN(object):
 
         self.c_dim = c_dim
 
+        self.reg = reg
         # batch normalization : deals with poor initialization helps gradient flow
         self.d_bn0 = batch_norm(name='d_bn0')
         self.d_bn1 = batch_norm(name='d_bn1')
@@ -84,7 +85,7 @@ class JCGAN(object):
             # G: generated images
             # D: sigmoid of D_logits from real images
             # D_: sigmoid of D_logits_ from generated images
-            self.G = self.generator(self.obj_images, self.bg_images, self.mask_images)
+            self.G, self.color_filter = self.generator(self.obj_images, self.bg_images, self.mask_images)
             self.D, self.D_logits = self.discriminator(self.images)
 
             self.synthesize = self.synthesize(self.obj_images, self.bg_images, self.mask_images)
@@ -96,7 +97,8 @@ class JCGAN(object):
 
             self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
             self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
-            self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
+            self.l2_reg = self.reg * tf.nn.l2_loss(self.color_filter)
+            self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))  
 
             self.d_loss_real_sum = tf.scalar_summary("d_loss_real", self.d_loss_real)
             self.d_loss_fake_sum = tf.scalar_summary("d_loss_fake", self.d_loss_fake)
@@ -178,7 +180,6 @@ class JCGAN(object):
                     #show_image(test_image)
 
                     # Update D network
-                    # TODO use the object image as the real images
                     _, summary_str = self.sess.run([d_optim, self.d_sum],
                         feed_dict={ self.images: real_batch_images, self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
                     self.writer.add_summary(summary_str, counter)
@@ -187,9 +188,10 @@ class JCGAN(object):
                     errD_real = self.d_loss_real.eval({self.images: real_batch_images})
                     errG = self.g_loss.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
 
-                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_fake_loss: %.8f, d_real_loss: %.8f, g_loss: %.8f" \
+                    regG = self.l2_reg.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_fake_loss: %.8f, d_real_loss: %.8f, g_loss: %.8f, l2_reg: %.8f" \
                         % (epoch, idx, batch_idxs,
-                            time.time() - start_time, errD_fake, errD_real, errG))
+                            time.time() - start_time, errD_fake, errD_real, errG, regG))
 
                     # Update G network
                     _, summary_str = self.sess.run([g_optim, self.g_sum],
@@ -199,10 +201,11 @@ class JCGAN(object):
                     errD_fake = self.d_loss_fake.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
                     errD_real = self.d_loss_real.eval({self.images: real_batch_images})
                     errG = self.g_loss.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    regG = self.l2_reg.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
 
-                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_fake_loss: %.8f, d_real_loss: %.8f, g_loss: %.8f" \
+                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_fake_loss: %.8f, d_real_loss: %.8f, g_loss: %.8f, l2_reg: %.8f" \
                         % (epoch, idx, batch_idxs,
-                            time.time() - start_time, errD_fake, errD_real, errG))
+                            time.time() - start_time, errD_fake, errD_real, errG, regG))
 
                     # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
                     _, summary_str = self.sess.run([g_optim, self.g_sum],
@@ -307,7 +310,7 @@ class JCGAN(object):
         syn_image = tf.select(mask_image_pack, obj_color, bg_image)
         self.obj_color = syn_image
 
-        return syn_image
+        return syn_image, color_filter
 
     def siamese(self, image, num_class, train=False):
         #filter_dim = 6 in siamese net

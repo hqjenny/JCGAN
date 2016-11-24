@@ -12,6 +12,7 @@ flags.DEFINE_integer("epoch", 4, "Epoch to train [25]")
 # Use different learning rate of discriminator and generator 
 flags.DEFINE_float("learning_rate_d", 0.00002, "Learning rate of for adam [0.0002]")
 flags.DEFINE_float("learning_rate_g", 0.00002, "Learning rate of for adam [0.0002]")
+flags.DEFINE_float("reg", 0.1, "Regularization rate of L2 filter [0.01]")
 flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
 flags.DEFINE_integer("real_size", 16, "The size of real sample images [np.inf]")
@@ -41,7 +42,7 @@ def main(_):
 
     with tf.Session(config = config) as sess:
         jcgan = JCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, output_size=FLAGS.output_size, c_dim=FLAGS.c_dim,
-               dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir, sample_dir=FLAGS.sample_dir, device=FLAGS.device)
+               dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir, sample_dir=FLAGS.sample_dir, device=FLAGS.device, reg=FLAGS.reg)
 
         if FLAGS.is_train:
             jcgan.train(FLAGS)
