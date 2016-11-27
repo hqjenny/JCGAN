@@ -28,7 +28,7 @@ def get_image(image_path, image_size, is_crop=True, resize_w=64, is_grayscale = 
     image = imread(image_path, is_grayscale)
     image = transform(image, image_size, is_crop, resize_w, is_norm)
     #scipy.misc.imshow(image)
-    #print image.shape
+    #print (image.shape)
     return image
 
 def save_images(images, size, image_path):

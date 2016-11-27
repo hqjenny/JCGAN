@@ -90,6 +90,8 @@ ENV/
 .ropeproject
 
 #Ignore txt  
-*.txt
+#*.txt
 logs/
 run.sh
+*out
+*.bk
