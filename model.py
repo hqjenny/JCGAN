@@ -5,7 +5,7 @@ from glob import glob
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-
+from spatial_transformer import transformer
 from ops import *
 from utils import *
 
@@ -98,7 +98,7 @@ class JCGAN(object):
             self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
             self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
             self.l2_reg = self.reg * tf.nn.l2_loss(self.color_filter)
-            self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))  
+            self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
 
             self.d_loss_real_sum = tf.scalar_summary("d_loss_real", self.d_loss_real)
             self.d_loss_fake_sum = tf.scalar_summary("d_loss_fake", self.d_loss_fake)
@@ -167,7 +167,7 @@ class JCGAN(object):
 
                 # Train the same object and bg for the generator; while input different real objects for the discriminator
                 # Iterate through the real sample images for the discriminator
-                #TODO TMP CHANGE
+                # TODO TMP CHANGE
                 # for real_idx in range(real_idxs):
                 for real_idx in range(config.fake_real_ratio):
 
@@ -217,7 +217,7 @@ class JCGAN(object):
                     color_filter = self.color_filter.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
                     #print(color_filter_offset)
                     print(color_filter)
-                  
+
                     #show_image(synth_image[0])
 
                     # Feed in data that make evalutation of d_loss_fake possible,
@@ -234,7 +234,7 @@ class JCGAN(object):
                         % (epoch, idx, batch_idxs,
                             time.time() - start_time, errD_fake+errD_real, errG))
 
-                    #Only save the images to the sample folder when it is looping through half way of real images or the end.   
+                    #Only save the images to the sample folder when it is looping through half way of real images or the end.
                     #if np.mod(counter, 4) == 1:
                     #TODO TMP CHANGE
                     #if real_idx == real_idxs/2 or real_idx == real_idxs-1:
@@ -270,29 +270,28 @@ class JCGAN(object):
         with tf.variable_scope("g_enerator") as scope:
             # Get the obj_image shape Batch x H x W x C
             shape = obj_image.get_shape().as_list()
-
-            # Generate vector of (C x C)
-            obj = self.siamese(obj_image, shape[3] * shape[3], train=True)
+            color_filter_size = shape[3] * shape[3]
+            # Generate vector of (C x C + STN)
+            obj = self.siamese(obj_image, color_filter_size + 6, train=True)
             tf.get_variable_scope().reuse_variables()
-            bg = self.siamese(bg_image, shape[3] * shape[3], train=True)
-            # Generates batch_size x (C x C) 2-D filter? so using add instead of concat?
-            # TODO Concat 18 x 1 -> ReLU -> FC -> 1 x 9
-            #concat_filter = tf.add(obj, bg)
+            bg = self.siamese(bg_image, color_filter_size + 6, train=True)
 
+        # Generate batch_size x (C x C) x 2 filter
         concat_filter = tf.concat(1, [obj, bg])
-        #print "Concat shape"
-        #print concat_filter.get_shape()
-        filter = lrelu(fc(concat_filter, shape[3] * shape[3], "g_fc_concat"))
+        filter = lrelu(fc(concat_filter, color_filter_size + 6, "g_fc_concat"))
+
+        # 1. Take 3x3 color filter
+        # 2. Use the rest 2 (x256) as the shifting faction
+        # 3. Rotate mask and obj
+        # 3. Add in the STN
+        color_filter_offset = tf.slice(filter, [0, 0], [-1, color_filter_size])
+        stn_filter = tf.slice(filter, [0, color_filter_size], [-1, 6])
 
         # Affine Layer
         # Reshape output to Batch x C x C
-        color_filter_offset = tf.reshape(filter, [-1, shape[3], shape[3]])
-        #self.color_filter_offset = color_filter_offset
-        #identity = np.identity(shape[3])
-        #identity_matrix = tf.constant( np.tile(identity, (shape[0], 1)) , dtype=np.float32, shape = [shape[0],shape[3],shape[3]])
+        color_filter_offset = tf.reshape(color_filter_offset, [-1, shape[3], shape[3]])
         identity_matrix = tf.constant(np.identity(shape[3]), dtype=np.float32, shape = [shape[3],shape[3]])
-        color_filter = identity_matrix + color_filter_offset 
-        #color_filter = identity_matrix
+        color_filter = identity_matrix + color_filter_offset
         self.color_filter = color_filter
         #print color_filter.get_shape()
         #print obj_image.get_shape()
@@ -301,34 +300,69 @@ class JCGAN(object):
         obj_image_rs = tf.reshape(obj_image, [shape[0], shape[1] * shape[2], shape[3]])
         obj_color = tf.reshape(tf.batch_matmul(obj_image_rs, color_filter), shape)
         print (obj_color.get_shape())
-        # Generate N images? N x H x W x C
-        # Use select to combine obj and bg
 
-        # change mask dimension from N x H x W x 1 to N x H x W x 3
+        # Change mask dimension from N x H x W x 1 to N x H x W x 3
         mask_image_pack = tf.concat(3, [tf.expand_dims(mask_image, 3) for i in range(3)])
-        #print mask_image_pack.get_shape()
-        syn_image = tf.select(mask_image_pack, obj_color, bg_image)
-        self.obj_color = syn_image
 
+        # Spatial Transform
+        # obj_image, mask_image = self.shifter(obj_image, mask_image, position_filter)
+        obj_image, mask_image = self.stn(obj_image, mask_image_pack, stn_filter)
+
+        # Generate N images N x H x W x C
+        # Use select to combine obj and bg
+        syn_image = tf.select(mask_image, obj_color, bg_image)
+        self.obj_color = syn_image
         return syn_image, color_filter
+
+    def shifter(self, obj_image, mask_image, filter):
+        x_shift = tf.slice(filter, [0, 0], [-1, 1])
+        y_shift = tf.slice(filter, [0, 1], [-1, 1])
+
+        print (x_shift.get_shape())
+        print (y_shift.get_shape())
+
+        # N x H x W x C
+        left = tf.slice(obj_image, [0, 0, 0, 0], [-1, 100, -1, -1])
+        right = tf.slice(obj_image, [0, 100, 0, 0], [-1, 156, -1, -1])
+        obj_image = tf.concat(1, [right, left])
+        left = tf.slice(mask_image, [0, 0, 0], [-1, 100, -1])
+        right = tf.slice(mask_image, [0, 100, 0], [-1, 156, -1])
+        mask_image = tf.concat(1, [right, left])
+
+        # tf.shift
+        return obj_image, mask_image
+
+
+    def stn(self, obj_image, mask_image, stn_filter):
+        with tf.variable_scope("g_enerator") as scope:
+            obj_image_stn = transformer(obj_image, stn_filter, (256, 256))
+            tf.get_variable_scope().reuse_variables()
+            mask_image = tf.cast(mask_image, 'float32')
+            mask_image_stn = transformer(mask_image, stn_filter, (256, 256))
+            mask_image_stn = tf.cast(mask_image_stn, 'bool')
+            return obj_image_stn, mask_image_stn
 
     def siamese(self, image, num_class, train=False):
         #filter_dim = 6 in siamese net
 
         # if shared weights
+        #print ("Siamese shape")
         #print image.get_shape()
         conv1 = maxpool2d(lrelu(self.g_bn0(conv2d(image, 16, d_h = 1, d_w = 1, name='g_conv0'), train=train)))
         #print conv1.get_shape()
         conv2 = maxpool2d(lrelu(self.g_bn1(conv2d(conv1, 32, d_h = 1, d_w = 1, name='g_conv1'), train=train)))
         #print conv2.get_shape()
         conv3 = maxpool2d(lrelu(self.g_bn2(conv2d(conv2, 64, d_h = 1, d_w = 1, name='g_conv2'), train=train)))
+        #print conv3.get_shape()
 
         # Using leaky relu
         fc4 = lrelu(fc(conv3, 64, "g_fc3"))
+        #print fc4.get_shape()
         fc5 = lrelu(fc(fc4, 32, "g_fc4"))
+        #print fc5.get_shape()
         # no ReLu
         fc6 = fc(fc5, num_class, "g_fc5")
-
+        #print fc6.get_shape()
         return fc6
 
     def synthesize(self, obj_image, bg_image, mask_image):
@@ -336,35 +370,49 @@ class JCGAN(object):
         with tf.variable_scope("g_enerator") as scope:
             # Get the obj_image shape Batch x H x W x C
             shape = obj_image.get_shape().as_list()
+            color_filter_size = shape[3] * shape[3]
+            # Generate vector of (C x C + STN)
             tf.get_variable_scope().reuse_variables()
-
-            obj = self.siamese(obj_image, shape[3] * shape[3], train=False)
-            bg = self.siamese(bg_image, shape[3] * shape[3], train=False)
+            obj = self.siamese(obj_image, color_filter_size + 6, train=True)
+            bg = self.siamese(bg_image, color_filter_size + 6, train=True)
+        # Generate batch_size x (C x C) x 2 filter
+            #concat_filter = tf.add(obj, bg)
         tf.get_variable_scope().reuse_variables()
-        
-        # Generates batch_size x (C x C) 2-D filter? so using add instead of concat?
-        #concat_filter = tf.add(obj, bg)
         concat_filter = tf.concat(1, [obj, bg])
-        filter = lrelu(fc(concat_filter, shape[3] * shape[3], "g_fc_concat"))
+        filter = lrelu(fc(concat_filter, color_filter_size + 6, "g_fc_concat"))
+
+        # 1. Take 3x3 color filter
+        # 2. Use the rest 2 (x256) as the shifting faction
+        # 3. Rotate mask and obj
+        # 3. Add in the STN
+        color_filter_offset = tf.slice(filter, [0, 0], [-1, color_filter_size])
+        stn_filter = tf.slice(filter, [0, color_filter_size], [-1, 6])
 
         # Affine Layer
         # Reshape output to Batch x C x C
-        color_filter_offset = tf.reshape(filter, [-1, shape[3], shape[3]])
+        color_filter_offset = tf.reshape(color_filter_offset, [-1, shape[3], shape[3]])
         identity_matrix = tf.constant(np.identity(shape[3]), dtype=np.float32, shape = [shape[3],shape[3]])
-        color_filter = identity_matrix + color_filter_offset        #print color_filter.get_shape()
+        color_filter = identity_matrix + color_filter_offset
+        self.color_filter = color_filter
+        #print color_filter.get_shape()
         #print obj_image.get_shape()
 
         # Reshape input image to N x (H x W) x C 3-D
         obj_image_rs = tf.reshape(obj_image, [shape[0], shape[1] * shape[2], shape[3]])
         obj_color = tf.reshape(tf.batch_matmul(obj_image_rs, color_filter), shape)
-        print(obj_color.get_shape())
+        print (obj_color.get_shape())
 
-        # change mask dimension from N x H x W x 1 to N x H x W x 3
+        # Change mask dimension from N x H x W x 1 to N x H x W x 3
         mask_image_pack = tf.concat(3, [tf.expand_dims(mask_image, 3) for i in range(3)])
-        #print mask_image_pack.get_shape()
+
+        # Spatial Transform
+        # obj_image, mask_image = self.shifter(obj_image, mask_image, position_filter)
+        obj_image, mask_image = self.stn(obj_image, mask_image_pack, stn_filter)
+
         # Generate N images? N x H x W x C
         # Use select to combine obj and bg
-        syn_image = tf.select(mask_image_pack, obj_color, bg_image)
+        syn_image = tf.select(mask_image, obj_color, bg_image)
+        self.obj_color = syn_image
         return syn_image
 
     def save(self, checkpoint_dir, step):
