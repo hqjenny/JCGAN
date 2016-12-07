@@ -8,13 +8,18 @@ import matplotlib.pyplot as plt
 from spatial_transformer import transformer
 from ops import *
 from utils import *
-
+# import sys
+# sys.stdout.flush()
 identity_matrix = np.identity(3)
 # apply a random filter that perturbs the color of object images
-constant_filter = identity_matrix + np.random.uniform(0, 1, identity_matrix.shape)*0.5
+# constant_filter = identity_matrix + np.random.uniform(-0.2, 0.2, identity_matrix.shape)
+constant_filter = identity_matrix
+print('Manipulation filter:')
+print(constant_filter)
+print(np.linalg.inv(constant_filter))
 
 class JCGAN(object):
-    def __init__(self, sess, image_size=108, is_crop=True,
+    def __init__(self, sess, image_size=256, is_crop=True,
                  batch_size=64, output_size=480,
                  y_dim=None, gf_dim=64, df_dim=64,
                  gfc_dim=1024, dfc_dim=1024, c_dim=3, reg=0.01, dataset_name='default',
@@ -98,7 +103,7 @@ class JCGAN(object):
             self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
             self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
             self.l2_reg = self.reg * tf.nn.l2_loss(self.color_filter)
-            self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
+            self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_))) + self.l2_reg 
 
             self.d_loss_real_sum = tf.scalar_summary("d_loss_real", self.d_loss_real)
             self.d_loss_fake_sum = tf.scalar_summary("d_loss_fake", self.d_loss_fake)
@@ -163,7 +168,7 @@ class JCGAN(object):
                 obj_batch_images_rs = np.reshape(obj_batch_images, [shape[0], shape[1] * shape[2], shape[3]])
                 obj_batch_images = np.reshape(np.dot(obj_batch_images_rs, constant_filter), shape)
                 # For debugging - show the images
-                #show_input_triplet(obj_batch_images[0], mask_batch_images[0], bg_batch_images[0])
+                # show_input_triplet(obj_batch_images[0], mask_batch_images[0], bg_batch_images[0])
 
                 # Train the same object and bg for the generator; while input different real objects for the discriminator
                 # Iterate through the real sample images for the discriminator
@@ -212,13 +217,24 @@ class JCGAN(object):
                         feed_dict={ self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
                     self.writer.add_summary(summary_str, counter)
 
-                    #synth_image = self.obj_color.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
-                    #color_filter_offset = self.color_filter_offset.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    # obj_color_stn = self.obj_color.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    # obj_mask_stn = self.obj_mask.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    # mask_before = self.mask_before.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    # mask_after = self.mask_after.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    # mask_cast = self.mask_cast.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                    stn_filter = self.stn_filter.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
                     color_filter = self.color_filter.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
-                    #print(color_filter_offset)
+                    print(stn_filter)
                     print(color_filter)
 
-                    #show_image(synth_image[0])
+                    # print (np.array_equal(mask_before, mask_after))
+                    # show_image(mask_before[0]) 
+                    # show_image(mask_after[0]) 
+                    # show_image(mask_cast[0]) 
+                    # show_image(obj_color_stn[0]) 
+                    # show_image(obj_mask_stn[0])
+                    # color_filter_offset = self.color_filter_offset.eval({self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images})
+                                        #show_image(synth_image[0])
 
                     # Feed in data that make evalutation of d_loss_fake possible,
                     # Used to input z a vector of noise, now is three input images
@@ -238,14 +254,15 @@ class JCGAN(object):
                     #if np.mod(counter, 4) == 1:
                     #TODO TMP CHANGE
                     #if real_idx == real_idxs/2 or real_idx == real_idxs-1:
-                    if idx == 0:
+                    #if True:
+                    if idx % 500 == 0:
                         samples, d_loss, g_loss = self.sess.run(
                             [self.synthesize, self.d_loss, self.g_loss],
                             feed_dict={self.obj_images: obj_batch_images, self.bg_images: bg_batch_images, self.mask_images: mask_batch_images, self.images: real_batch_images}
                         )
                         #show_image(samples[0])
                         #TODO 64 is the output size can update to larger number
-                        save_images(samples, [4, 4],
+                        save_images(samples, [2, 2],
                                     './{}/train_{:02d}_{:04d}_{:04d}.png'.format(config.sample_dir, epoch, idx, real_idx))
                         print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss))
 
@@ -259,8 +276,8 @@ class JCGAN(object):
 
             h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
             h1 = lrelu(self.d_bn0(conv2d(h0, self.df_dim*1, d_h=1, d_w=1, name='d_h1_conv')))
-            h2 = lrelu(self.d_bn1(conv2d(h1, self.df_dim*1, d_h=1, d_w=1, name='d_h2_conv')))
-            h3 = lrelu(self.d_bn2(conv2d(h2, self.df_dim*1, d_h=1, d_w=1, name='d_h3_conv')))
+            h2 = lrelu(self.d_bn1(conv2d(h1, self.df_dim*2, d_h=1, d_w=1, name='d_h2_conv')))
+            h3 = lrelu(self.d_bn2(conv2d(h2, self.df_dim*4, d_h=1, d_w=1, name='d_h3_conv')))
             h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h3_lin')
 
             return tf.nn.sigmoid(h4), h4
@@ -285,20 +302,25 @@ class JCGAN(object):
         # 3. Rotate mask and obj
         # 3. Add in the STN
         color_filter_offset = tf.slice(filter, [0, 0], [-1, color_filter_size])
-        stn_filter = tf.slice(filter, [0, color_filter_size], [-1, 6])
+        stn_filter_offset = tf.slice(filter, [0, color_filter_size], [-1, 6])
 
         # Affine Layer
         # Reshape output to Batch x C x C
         color_filter_offset = tf.reshape(color_filter_offset, [-1, shape[3], shape[3]])
-        identity_matrix = tf.constant(np.identity(shape[3]), dtype=np.float32, shape = [shape[3],shape[3]])
-        color_filter = identity_matrix + color_filter_offset
+        color_identity_matrix = tf.constant(np.identity(shape[3]), dtype=np.float32, shape = [shape[3],shape[3]])
+        stn_identity_matrix = tf.constant(np.array([1., 0, 0, 0, 1., 0]), dtype=np.float32, shape = [6])
+        color_filter = color_identity_matrix + color_filter_offset
+        stn_filter = stn_identity_matrix + stn_filter_offset
         self.color_filter = color_filter
+        self.stn_filter = stn_filter
         #print color_filter.get_shape()
         #print obj_image.get_shape()
 
         # Reshape input image to N x (H x W) x C 3-D
         obj_image_rs = tf.reshape(obj_image, [shape[0], shape[1] * shape[2], shape[3]])
         obj_color = tf.reshape(tf.batch_matmul(obj_image_rs, color_filter), shape)
+        # For testing stn
+        #obj_color= obj_image
         print (obj_color.get_shape())
 
         # Change mask dimension from N x H x W x 1 to N x H x W x 3
@@ -306,12 +328,13 @@ class JCGAN(object):
 
         # Spatial Transform
         # obj_image, mask_image = self.shifter(obj_image, mask_image, position_filter)
-        obj_image, mask_image = self.stn(obj_image, mask_image_pack, stn_filter)
-
+        obj_color_stn, mask_image_stn = self.stn(obj_color, mask_image_pack, stn_filter)
+        # self.obj_color = obj_color_stn
+        # self.obj_mask = mask_image_stn
         # Generate N images N x H x W x C
         # Use select to combine obj and bg
-        syn_image = tf.select(mask_image, obj_color, bg_image)
-        self.obj_color = syn_image
+        syn_image = tf.select(mask_image_stn, obj_color_stn, bg_image)
+ 
         return syn_image, color_filter
 
     def shifter(self, obj_image, mask_image, filter):
@@ -338,8 +361,12 @@ class JCGAN(object):
             obj_image_stn = transformer(obj_image, stn_filter, (256, 256))
             tf.get_variable_scope().reuse_variables()
             mask_image = tf.cast(mask_image, 'float32')
+
+            # self.mask_before = mask_image 
             mask_image_stn = transformer(mask_image, stn_filter, (256, 256))
+            # self.mask_after = mask_image_stn 
             mask_image_stn = tf.cast(mask_image_stn, 'bool')
+            # self.mask_cast = mask_image_stn
             return obj_image_stn, mask_image_stn
 
     def siamese(self, image, num_class, train=False):
@@ -348,11 +375,11 @@ class JCGAN(object):
         # if shared weights
         #print ("Siamese shape")
         #print image.get_shape()
-        conv1 = maxpool2d(lrelu(self.g_bn0(conv2d(image, 16, d_h = 1, d_w = 1, name='g_conv0'), train=train)))
+        conv1 = maxpool2d(lrelu(self.g_bn0(conv2d(image, 32, d_h = 1, d_w = 1, name='g_conv0'), train=train)))
         #print conv1.get_shape()
-        conv2 = maxpool2d(lrelu(self.g_bn1(conv2d(conv1, 32, d_h = 1, d_w = 1, name='g_conv1'), train=train)))
+        conv2 = maxpool2d(lrelu(self.g_bn1(conv2d(conv1, 64, d_h = 1, d_w = 1, name='g_conv1'), train=train)))
         #print conv2.get_shape()
-        conv3 = maxpool2d(lrelu(self.g_bn2(conv2d(conv2, 64, d_h = 1, d_w = 1, name='g_conv2'), train=train)))
+        conv3 = maxpool2d(lrelu(self.g_bn2(conv2d(conv2, 128, d_h = 1, d_w = 1, name='g_conv2'), train=train)))
         #print conv3.get_shape()
 
         # Using leaky relu
@@ -386,20 +413,24 @@ class JCGAN(object):
         # 3. Rotate mask and obj
         # 3. Add in the STN
         color_filter_offset = tf.slice(filter, [0, 0], [-1, color_filter_size])
-        stn_filter = tf.slice(filter, [0, color_filter_size], [-1, 6])
+        stn_filter_offset = tf.slice(filter, [0, color_filter_size], [-1, 6])
 
         # Affine Layer
         # Reshape output to Batch x C x C
         color_filter_offset = tf.reshape(color_filter_offset, [-1, shape[3], shape[3]])
-        identity_matrix = tf.constant(np.identity(shape[3]), dtype=np.float32, shape = [shape[3],shape[3]])
-        color_filter = identity_matrix + color_filter_offset
-        self.color_filter = color_filter
+        color_identity_matrix = tf.constant(np.identity(shape[3]), dtype=np.float32, shape = [shape[3],shape[3]])
+        stn_identity_matrix = tf.constant(np.array([1., 0, 0, 0, 1., 0]), dtype=np.float32, shape = [6])
+        color_filter = color_identity_matrix + color_filter_offset
+        stn_filter = stn_identity_matrix + stn_filter_offset
+ 
         #print color_filter.get_shape()
         #print obj_image.get_shape()
 
         # Reshape input image to N x (H x W) x C 3-D
         obj_image_rs = tf.reshape(obj_image, [shape[0], shape[1] * shape[2], shape[3]])
         obj_color = tf.reshape(tf.batch_matmul(obj_image_rs, color_filter), shape)
+        # For testing stn
+        #obj_color= obj_image
         print (obj_color.get_shape())
 
         # Change mask dimension from N x H x W x 1 to N x H x W x 3
@@ -407,12 +438,12 @@ class JCGAN(object):
 
         # Spatial Transform
         # obj_image, mask_image = self.shifter(obj_image, mask_image, position_filter)
-        obj_image, mask_image = self.stn(obj_image, mask_image_pack, stn_filter)
+        obj_color_stn, mask_image_stn = self.stn(obj_color, mask_image_pack, stn_filter)
 
-        # Generate N images? N x H x W x C
+        # Generate N images N x H x W x C
         # Use select to combine obj and bg
-        syn_image = tf.select(mask_image, obj_color, bg_image)
-        self.obj_color = syn_image
+        syn_image = tf.select(mask_image_stn, obj_color_stn, bg_image)
+ 
         return syn_image
 
     def save(self, checkpoint_dir, step):
