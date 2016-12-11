@@ -263,21 +263,41 @@ def show_input_triplet(obj_batch_images, mask_batch_images, bg_batch_images):
         plt.show()
 
 # Use create_triplet.py to generate the input list
-def read_data_list():
+def read_data_list(real_path="real.txt", obj_path="obj.txt", mask_path="mask.txt", bg_path="bg.txt"):
     # Load data from file
     #real_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
-    with open("real.txt") as f:
+    with open(real_path) as f:
         real_data = f.read().splitlines()
     #np.random.shuffle(data)
 
     #obj_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
-    with open("obj.txt") as f:
+    with open(obj_path) as f:
         obj_data = f.read().splitlines()
+
     #mask_data = glob(os.path.join("./data/masks/", config.dataset, "*.jpg"))
-    with open("mask.txt") as f:
+    with open(mask_path) as f:
         mask_data = f.read().splitlines()
     #bg_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
-    with open("bg.txt") as f:
+    with open(bg_path) as f:
         bg_data = f.read().splitlines()
 
-    return (real_data, obj_data, mask_data, bg_data)
+    return real_data, obj_data, mask_data, bg_data
+
+# def read_data_list():
+#     # Load data from file
+#     #real_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
+#     with open("real.txt") as f:
+#         real_data = f.read().splitlines()
+#     #np.random.shuffle(data)
+
+#     #obj_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
+#     with open("obj.txt") as f:
+#         obj_data = f.read().splitlines()
+#     #mask_data = glob(os.path.join("./data/masks/", config.dataset, "*.jpg"))
+#     with open("mask.txt") as f:
+#         mask_data = f.read().splitlines()
+#     #bg_data = glob(os.path.join("./data/images/", config.dataset, "*.jpg"))
+#     with open("bg.txt") as f:
+#         bg_data = f.read().splitlines()
+
+#     return (real_data, obj_data, mask_data, bg_data)

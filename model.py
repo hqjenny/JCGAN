@@ -128,17 +128,18 @@ class JCGAN(object):
         train_ratio = 0.9
         # Read list of input images, modify read_data_list() function if input path is changed
         real_data_all, obj_data_all, mask_data_all, bg_data_all = \
-            read_data_list("real.txt", "obj_crop.txt", "obj.txt", "mask.txt", "bg.txt")
+            read_data_list("real.txt", "obj.txt", "mask.txt", "bg.txt")
         num_real_data = len(real_data_all)
         real_data = real_data_all
         num_mask_data = len(mask_data_all)
-        mask_data = mask_data_all[0:round(num_mask_data * train_ratio)]
-        obj_data = obj_data_all[0:round(num_mask_data * train_ratio)]
-        mask_data_test = mask_data_all[round(num_mask_data * train_ratio):]
-        obj_data_test = obj_data_all[round(num_mask_data * train_ratio):]
+        print (round(num_mask_data * train_ratio))
+        mask_data = mask_data_all[0:int(round(num_mask_data * train_ratio))]
+        obj_data = obj_data_all[0:int(round(num_mask_data * train_ratio))]
+        mask_data_test = mask_data_all[int(round(num_mask_data * train_ratio)):]
+        obj_data_test = obj_data_all[int(round(num_mask_data * train_ratio)):]
         num_bg_data = len(bg_data_all)
-        bg_data = bg_data_all[0:round(num_bg_data * train_ratio)]
-        bg_data_test = bg_data_all[round(num_bg_data * train_ratio):]
+        bg_data = bg_data_all[0:int(round(num_bg_data * train_ratio))]
+        bg_data_test = bg_data_all[int(round(num_bg_data * train_ratio)):]
 
         # real_data, obj_data, mask_data, bg_data = read_data_list()
 
