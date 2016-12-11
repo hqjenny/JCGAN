@@ -172,10 +172,13 @@ class JCGAN(object):
         # Train the whole dataset for config.epoch times
         for epoch in range(config.epoch):
             batch_idxs = min(len(obj_data), config.train_size) // config.batch_size
+            batch_idxs_test = min(len(obj_data_test), config.train_size) // config.batch_size
 
             real_files_rand = np.random.randint(len(real_files), size=config.batch_size)
             # Iterate through different obj and bg pairs
             for idx in range(0, batch_idxs):
+            	
+            	idx_test = idx % batch_idxs_test
 
                 # Get the images files for the obj and background, cropped and normalized
                 obj_batch_images, mask_batch_images, bg_batch_images = self.read_triplet(obj_data, mask_data, bg_data, idx, config.batch_size)
