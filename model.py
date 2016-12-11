@@ -21,7 +21,7 @@ print(np.linalg.inv(constant_filter))
 class JCGAN(object):
     def __init__(self, sess, image_size=256, is_crop=True,
                  batch_size=64, output_size=480,
-                 y_dim=None, gf_dim=64, df_dim=64,
+                 y_dim=None, gf_dim=64, df_dim=16,
                  gfc_dim=1024, dfc_dim=1024, c_dim=3, reg=0.01, dataset_name='default',
                  checkpoint_dir=None, sample_dir=None, device="/cpu:0"):
         """
@@ -178,7 +178,7 @@ class JCGAN(object):
             # Iterate through different obj and bg pairs
             for idx in range(0, batch_idxs):
             	
-            	idx_test = idx % batch_idxs_test
+                idx_test = idx % batch_idxs_test
 
                 # Get the images files for the obj and background, cropped and normalized
                 obj_batch_images, mask_batch_images, bg_batch_images = self.read_triplet(obj_data, mask_data, bg_data, idx, config.batch_size)
@@ -190,7 +190,7 @@ class JCGAN(object):
 
                 # Read test data
                 obj_batch_images_test, mask_batch_images_test, bg_batch_images_test = self.read_triplet(obj_data_test, mask_data_test, bg_data_test, idx_test,
-                                                                             config.batch_size, True)
+                                                                             config.batch_size)
                 ####################### apply a random filter
                 shape = obj_batch_images_test.shape
                 obj_batch_images_test_rs = np.reshape(obj_batch_images_test, [shape[0], shape[1] * shape[2], shape[3]])
@@ -418,11 +418,11 @@ class JCGAN(object):
         # if shared weights
         #print ("Siamese shape")
         #print image.get_shape()
-        conv1 = maxpool2d(lrelu(self.g_bn0(conv2d(image, 32, d_h = 1, d_w = 1, name='g_conv0'), train=train)))
+        conv1 = maxpool2d(lrelu(self.g_bn0(conv2d(image, 16, d_h = 1, d_w = 1, name='g_conv0'), train=train)))
         #print conv1.get_shape()
-        conv2 = maxpool2d(lrelu(self.g_bn1(conv2d(conv1, 64, d_h = 1, d_w = 1, name='g_conv1'), train=train)))
+        conv2 = maxpool2d(lrelu(self.g_bn1(conv2d(conv1, 32, d_h = 1, d_w = 1, name='g_conv1'), train=train)))
         #print conv2.get_shape()
-        conv3 = maxpool2d(lrelu(self.g_bn2(conv2d(conv2, 128, d_h = 1, d_w = 1, name='g_conv2'), train=train)))
+        conv3 = maxpool2d(lrelu(self.g_bn2(conv2d(conv2, 64, d_h = 1, d_w = 1, name='g_conv2'), train=train)))
         #print conv3.get_shape()
 
         # Using leaky relu
