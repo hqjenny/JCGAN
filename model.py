@@ -12,8 +12,8 @@ from utils import *
 # sys.stdout.flush()
 identity_matrix = np.identity(3)
 # apply a random filter that perturbs the color of object images
-# constant_filter = identity_matrix + np.random.uniform(-0.2, 0.2, identity_matrix.shape)
-constant_filter = identity_matrix
+constant_filter = identity_matrix + np.random.uniform(-0.2, 0.2, identity_matrix.shape)
+# constant_filter = identity_matrix
 print('Manipulation filter:')
 print(constant_filter)
 print(np.linalg.inv(constant_filter))
@@ -124,7 +124,23 @@ class JCGAN(object):
         """Train DCGAN"""
 
         # Read list of input images, modify read_data_list() function if input path is changed
-        real_data, obj_data, mask_data, bg_data = read_data_list()
+
+        train_ratio = 0.9
+        # Read list of input images, modify read_data_list() function if input path is changed
+        real_data_all, obj_data_all, mask_data_all, bg_data_all = \
+            read_data_list("real.txt", "obj_crop.txt", "obj.txt", "mask.txt", "bg.txt")
+        num_real_data = len(real_data_all)
+        real_data = real_data_all
+        num_mask_data = len(mask_data_all)
+        mask_data = mask_data_all[0:round(num_mask_data * train_ratio)]
+        obj_data = obj_data_all[0:round(num_mask_data * train_ratio)]
+        mask_data_test = mask_data_all[round(num_mask_data * train_ratio):]
+        obj_data_test = obj_data_all[round(num_mask_data * train_ratio):]
+        num_bg_data = len(bg_data_all)
+        bg_data = bg_data_all[0:round(num_bg_data * train_ratio)]
+        bg_data_test = bg_data_all[round(num_bg_data * train_ratio):]
+
+        # real_data, obj_data, mask_data, bg_data = read_data_list()
 
         d_optim = tf.train.AdamOptimizer(config.learning_rate_d, beta1=config.beta1) \
                           .minimize(self.d_loss, var_list=self.d_vars)
@@ -167,6 +183,15 @@ class JCGAN(object):
                 shape = obj_batch_images.shape
                 obj_batch_images_rs = np.reshape(obj_batch_images, [shape[0], shape[1] * shape[2], shape[3]])
                 obj_batch_images = np.reshape(np.dot(obj_batch_images_rs, constant_filter), shape)
+
+                # Read test data
+                obj_batch_images_test, mask_batch_images_test, bg_batch_images_test = self.read_triplet(obj_data_test, mask_data_test, bg_data_test, idx_test,
+                                                                             config.batch_size, True)
+                ####################### apply a random filter
+                shape = obj_batch_images_test.shape
+                obj_batch_images_test_rs = np.reshape(obj_batch_images_test, [shape[0], shape[1] * shape[2], shape[3]])
+                obj_batch_images_test = np.reshape(np.dot(obj_batch_images_test_rs, constant_filter), shape)
+
                 # For debugging - show the images
                 # show_input_triplet(obj_batch_images[0], mask_batch_images[0], bg_batch_images[0])
 
@@ -266,8 +291,22 @@ class JCGAN(object):
                                     './{}/train_{:02d}_{:04d}_{:04d}.png'.format(config.sample_dir, epoch, idx, real_idx))
                         print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss))
 
-                    # if np.mod(counter, 500) == 2:
-                    #    self.save(config.checkpoint_dir, counter)
+
+                        samples_test, d_loss_test, g_loss_test, D_logits_test = self.sess.run([self.synthesize, self.d_loss, self.g_loss, self.D_logits],
+                                                                           feed_dict={self.images: real_batch_images,
+                                                                                      self.obj_images: obj_batch_images_test,
+                                                                                      self.bg_images: bg_batch_images_test})
+                        color_filter = self.color_filter.eval({self.obj_images: obj_batch_images_test, self.bg_images: bg_batch_images_test})
+                        save_images(samples_test, [4, 4], './{}/test_{:02d}_{:04d}.png'.format(config.sample_dir,
+                                                                                      epoch, idx))
+                        print("[Test] Ranking of real images:")
+                        print(D_logits_test)
+                        print("[Test] This color filiter:")
+                        print(color_filter)
+
+
+                    if np.mod(counter, 500) == 2:
+                       self.save(config.checkpoint_dir, counter)
 
     def discriminator(self, image, reuse=False):
         with tf.variable_scope("d_iscriminator") as scope:
