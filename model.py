@@ -291,7 +291,7 @@ class JCGAN(object):
                         )
                         #show_image(samples[0])
                         #TODO 64 is the output size can update to larger number
-                        save_images(samples, [2, 2],
+                        save_images(samples, [4, 4],
                                     './{}/train_{:02d}_{:04d}_{:04d}.png'.format(config.sample_dir, epoch, idx, real_idx))
                         print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss))
 
@@ -299,6 +299,8 @@ class JCGAN(object):
                         samples_test, d_loss_test, g_loss_test, D_logits_test = self.sess.run([self.synthesize, self.d_loss, self.g_loss, self.D_logits],
                                                                            feed_dict={self.images: real_batch_images,
                                                                                       self.obj_images: obj_batch_images_test,
+
+      self.mask_images:mask_batch_images_test,
                                                                                       self.bg_images: bg_batch_images_test})
                         color_filter = self.color_filter.eval({self.obj_images: obj_batch_images_test, self.bg_images: bg_batch_images_test})
                         save_images(samples_test, [4, 4], './{}/test_{:02d}_{:04d}.png'.format(config.sample_dir,
