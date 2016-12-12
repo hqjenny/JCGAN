@@ -13,10 +13,15 @@ from utils import *
 identity_matrix = np.identity(3)
 # apply a random filter that perturbs the color of object images
 constant_filter = identity_matrix + np.random.uniform(-0.2, 0.2, identity_matrix.shape)
+constant_filter2 = identity_matrix + np.random.uniform(-0.2,0.2, identity_matrix.shape)
 # constant_filter = identity_matrix
 print('Manipulation filter:')
 print(constant_filter)
 print(np.linalg.inv(constant_filter))
+
+print('Manipulation filter 2:')
+print(constant_filter2)
+print(np.linalg.inv(constant_filter2))
 
 class JCGAN(object):
     def __init__(self, sess, image_size=256, is_crop=True,
@@ -194,7 +199,7 @@ class JCGAN(object):
                 ####################### apply a random filter
                 shape = obj_batch_images_test.shape
                 obj_batch_images_test_rs = np.reshape(obj_batch_images_test, [shape[0], shape[1] * shape[2], shape[3]])
-                obj_batch_images_test = np.reshape(np.dot(obj_batch_images_test_rs, constant_filter), shape)
+                obj_batch_images_test = np.reshape(np.dot(obj_batch_images_test_rs, constant_filter2), shape)
 
                 # For debugging - show the images
                 # show_input_triplet(obj_batch_images[0], mask_batch_images[0], bg_batch_images[0])
